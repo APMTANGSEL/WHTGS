@@ -224,18 +224,30 @@ tr.flash{animation:flashrow 2.4s ease}
 
 <script>
 // 1) Tempel URL Web App Apps Script (berakhiran /exec) di sini:
-const API_URL = 'https://script.google.com/macros/s/AKfycbwf7UoZMAUIckf-7ZS-SPkpry5C9vMTdAl4MuU6a_Nwpa5mHBNrhtwfFcm4Oo4Z-Q0hiw/exec';
-const REFRESH_MS = 30000; // cek data baru tiap 30 detik
+const API_URL = 'https://script.google.com/macros/s/AKfycbwf7UoZMAUIckf-7ZS-SPkpry5C9vMTdAl4MuU6a_Nwpa5mHBNrhtwfFcm4Oo4Z-Q0hiw/exec'; // GANTI dengan URL /exec dari deployment baru
+const REFRESH_MS = 60000; // cek data spreadsheet tiap 1 menit
 
 let animRows = true, barT, entMs = 0;
 const STEP = 130, DUR = 900; // jeda antar baris & lama animasi (ms)
 let DATA = null, onlyLow = false, onlyMid = false, first = true, left = REFRESH_MS / 1000;
+let lastSig = null, loading = false, lastOk = null;
+const CACHE_KEY = 'sisabar_cache_v1';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nf = n => Number(n).toLocaleString('id-ID');
 const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 const BLN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const BEN = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+
+// CSS tambahan (kedip + penanda waktu) disuntikkan dari sini supaya tidak perlu edit <style>
+(function(){
+  const s = document.createElement('style');
+  s.textContent = '@keyframes kedip{0%,49%{opacity:1}50%,100%{opacity:.12}}'
+    + '.kedip,.b-low.kedip{animation:kedip 1s steps(1) infinite}'
+    + '.live{cursor:pointer}#upd{opacity:.92;font-size:11px;white-space:nowrap}#upd.bad{color:#FFD7D7}';
+  document.head.appendChild(s);
+})();
+
 function toDate(s){
   s = String(s || '').trim(); if (!s) return null;
   let m, d;
@@ -276,8 +288,8 @@ function render(){
   $('kcard').classList.toggle('on', low.length > 0);
 
   $('banner').innerHTML = low.length
-    ? '<div class="banner"><b>Harus segera di requestkan</b> <small>· ketuk nama barang untuk melihat</small><ul>' + low.map(r =>
-        `<li><a data-k="${esc(r.kode)}" role="button" tabindex="0">${esc(r.nama)}</a>: sisa <b>${nf(r.akhir)}</b></li>`).join('') + '</ul><div class="pesan"><b>WAREHOUSE FS :</b> <span class="typed" data-t="SEGERA REQUEST BARANG"></span></div></div>'
+    ? '<div class="banner"><b class="kedip">Barang sudah harus di Request</b> <small>· ketuk nama barang untuk melihat</small><ul>' + low.map(r =>
+        `<li><a data-k="${esc(r.kode)}" role="button" tabindex="0">${esc(r.nama)}</a>: sisa <b>${nf(r.akhir)}</b></li>`).join('') + '</ul><div class="pesan"><b>Pak Daryoto :</b> <span class="typed" data-t="Ayo segera requestkan ya om aziz"></span></div></div>'
     : '';
 
   const q = $('q').value.trim().toLowerCase();
@@ -288,14 +300,14 @@ function render(){
     const mid = !low && r.limit !== null && r.awal > 0 && r.akhir <= r.awal * 0.4;
     const st = kosong ? '<span class="badge b-na">Barang Tidak Tersedia</span>'
       : r.limit === null ? '<span class="badge b-na">Tidak dipantau</span>'
-      : low ? '<span class="badge b-low">Harus segera di requestkan</span>'
+      : low ? '<span class="badge b-low kedip">Barang sudah harus di Request</span>'
       : mid ? '<span class="badge b-warn">Stock Menipis</span>' : '<span class="badge b-ok">Aman</span>';
     return `<tr data-kode="${esc(r.kode)}" class="${low && !kosong ? 'low' : mid ? 'mid' : ''}"><td class="kode">${esc(r.kode)}</td><td class="nama"><b>${esc(r.nama)}</b></td>
       <td class="n" data-l="Awal">${nf(r.awal)}</td><td class="n" data-l="Masuk">${nf(r.masuk)}</td><td class="n" data-l="Keluar">${nf(r.keluar)}</td><td class="n" data-l="Rusak">${nf(r.rusak)}</td>
       <td class="n akhir" data-l="Stok Akhir"><b>${nf(r.akhir)}</b></td>
       <td class="lvl"><div class="bar"><i data-w="${pct}"></i></div></td><td class="stat">${st}</td></tr>`;
   }).join('') : (onlyLow && !low.length
-      ? '<tr class="emptyrow"><td colspan="9" class="empty aman"><div class="thumb">' + PENGUIN + '</div><div class="pesan aman-msg"><b>WAREHOUSE FS :</b> <span class="typed" data-t="Material aman yaaa om Agus"></span></div></td></tr>'
+      ? '<tr class="emptyrow"><td colspan="9" class="empty aman"><div class="thumb">' + PENGUIN + '</div><div class="pesan aman-msg"><b>Pak Daryoto :</b> <span class="typed" data-t="SEGERA REQUEST BARANG"></span></div></td></tr>'
       : '<tr class="emptyrow"><td colspan="9" class="empty">Tidak ada barang yang cocok.</td></tr>');
   entMs = animRows ? rows.length * STEP + DUR : 0;
   if (animRows) document.querySelectorAll('#rekap tr').forEach((tr, i) => { tr.classList.add('rin'); tr.style.setProperty('--d', i * STEP + 'ms'); });
@@ -330,7 +342,25 @@ function render(){
   first = false;
 }
 
-let lastSig = null, loading = false;
+// ---------- Waktu: hitung mundur + jam terakhir diperbarui ----------
+const jam = d => d.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
+(function(){
+  const u = document.createElement('span'); u.id = 'upd'; u.textContent = 'memuat…';
+  $('cd').after(u);
+})();
+function showCd(){
+  $('cd').textContent = loading ? 'memperbarui…' : Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' menit';
+}
+function setUpd(bad){
+  const u = $('upd');
+  u.textContent = bad ? 'gagal memperbarui' + (lastOk ? ' · terakhir ' + jam(lastOk) : '') : 'Diperbarui ' + jam(lastOk);
+  u.classList.toggle('bad', !!bad);
+}
+function tick(){
+  left = Math.max(0, left - 1);
+  showCd();
+  if (left === 0 && !loading && !document.hidden) load();
+}
 
 function toast(msg){
   let t = document.getElementById('toast');
@@ -344,26 +374,30 @@ function toast(msg){
 }
 
 async function load(){
-  if (loading) return;            // hindari request bertumpuk
-  loading = true;
-  const ac = new AbortController(), to = setTimeout(() => ac.abort(), 20000);
+  if (loading) return;
+  loading = true; showCd();
+  const ac = new AbortController(), to = setTimeout(() => ac.abort(), 25000);
   try{
     const res = await fetch(API_URL + (API_URL.includes('?') ? '&' : '?') + 't=' + Date.now(), { signal: ac.signal, cache: 'no-store' });
     const json = await res.json();
-    const sig = JSON.stringify([json.rekap, json.rusak]); // hanya data, abaikan field waktu
+    if (json.error) throw new Error(json.error);
+    if (!json.rekap || !json.rusak) throw new Error('format data tidak dikenali');
+    const sig = JSON.stringify([json.rekap, json.rusak]);
     $('err').style.display = 'none';
-    if (sig !== lastSig){                 // render ulang hanya jika data berubah
-      const pertama = lastSig === null;
+    lastOk = new Date(); setUpd(false);
+    if (sig !== lastSig){
+      const sudahAda = lastSig !== null;
       lastSig = sig; DATA = json; render();
-      if (!pertama) toast('Data spreadsheet diperbarui');
+      if (sudahAda) toast('Data spreadsheet diperbarui');
+      try{ localStorage.setItem(CACHE_KEY, JSON.stringify(json)); }catch(_){}
     }
   }catch(e){
     if (!DATA) $('err').style.display = 'block';
+    setUpd(true);
   }finally{
-    clearTimeout(to); loading = false; left = REFRESH_MS / 1000;
+    clearTimeout(to); loading = false; left = REFRESH_MS / 1000; showCd();
   }
 }
-
 
 $('q').oninput = () => DATA && render();
 let onlyRusak = false;
@@ -426,9 +460,21 @@ function lihatBarang(kode){
 }
 $('banner').onclick = e => { const a = e.target.closest('[data-k]'); if (a) { e.preventDefault(); lihatBarang(a.dataset.k); } };
 $('banner').onkeydown = e => { const a = e.target.closest('[data-k]'); if (a && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); lihatBarang(a.dataset.k); } };
-setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);      // pause saat tab tidak dilihat
-document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); }); // langsung segar saat tab dibuka lagi
-window.addEventListener('online', load);                                // segar saat internet kembali
+
+// ---------- Mulai ----------
+// 1) Tampilkan data tersimpan dulu (langsung muncul), 2) ambil data terbaru di belakang layar
+try{
+  const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+  if (c && c.rekap && c.rusak){ DATA = c; lastSig = JSON.stringify([c.rekap, c.rusak]); render(); }
+}catch(_){}
+const liveEl = document.querySelector('.live');
+if (liveEl){ liveEl.title = 'Klik untuk refresh sekarang'; liveEl.onclick = () => load(); }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+window.addEventListener('online', () => load());
+setInterval(tick, 1000);
+showCd();
+load();
+
 
 </script>
 </body>

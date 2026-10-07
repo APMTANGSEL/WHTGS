@@ -225,7 +225,7 @@ tr.flash{animation:flashrow 2.4s ease}
 <script>
 // 1) Tempel URL Web App Apps Script (berakhiran /exec) di sini:
 const API_URL = 'https://script.google.com/macros/s/AKfycbw3VxCr3Ij1N1ugn8NLHf5-KyMBH09fwE4KfnCqocefWKePsaA7UzFZB9diyRMrF8Ikqg/exec';
-const REFRESH_MS = 120000; // 2 menit
+const REFRESH_MS = 30000; // cek data baru tiap 30 detik
 
 let animRows = true, barT, entMs = 0;
 const STEP = 130, DUR = 900; // jeda antar baris & lama animasi (ms)
@@ -330,15 +330,40 @@ function render(){
   first = false;
 }
 
-async function load(){
-  try{
-    const res = await fetch(API_URL + (API_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
-    DATA = await res.json();
-    $('err').style.display = 'none';
-    render();
-  }catch(e){ $('err').style.display = 'block'; }
-  left = REFRESH_MS / 1000;
+let lastSig = null, loading = false;
+
+function toast(msg){
+  let t = document.getElementById('toast');
+  if (!t){
+    t = document.createElement('div'); t.id = 'toast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0B3C49;color:#fff;padding:10px 18px;border-radius:99px;font-size:13px;box-shadow:0 6px 20px #0004;opacity:0;transition:opacity .3s;z-index:99;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, 3500);
 }
+
+async function load(){
+  if (loading) return;            // hindari request bertumpuk
+  loading = true;
+  const ac = new AbortController(), to = setTimeout(() => ac.abort(), 20000);
+  try{
+    const res = await fetch(API_URL + (API_URL.includes('?') ? '&' : '?') + 't=' + Date.now(), { signal: ac.signal, cache: 'no-store' });
+    const json = await res.json();
+    const sig = JSON.stringify([json.rekap, json.rusak]); // hanya data, abaikan field waktu
+    $('err').style.display = 'none';
+    if (sig !== lastSig){                 // render ulang hanya jika data berubah
+      const pertama = lastSig === null;
+      lastSig = sig; DATA = json; render();
+      if (!pertama) toast('Data spreadsheet diperbarui');
+    }
+  }catch(e){
+    if (!DATA) $('err').style.display = 'block';
+  }finally{
+    clearTimeout(to); loading = false; left = REFRESH_MS / 1000;
+  }
+}
+
 
 $('q').oninput = () => DATA && render();
 let onlyRusak = false;
@@ -401,9 +426,10 @@ function lihatBarang(kode){
 }
 $('banner').onclick = e => { const a = e.target.closest('[data-k]'); if (a) { e.preventDefault(); lihatBarang(a.dataset.k); } };
 $('banner').onkeydown = e => { const a = e.target.closest('[data-k]'); if (a && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); lihatBarang(a.dataset.k); } };
-setInterval(load, REFRESH_MS);
-setInterval(() => { left = Math.max(0, left - 1); $('cd').textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' menit'; }, 1000);
-load();
+setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);      // pause saat tab tidak dilihat
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); }); // langsung segar saat tab dibuka lagi
+window.addEventListener('online', load);                                // segar saat internet kembali
+
 </script>
 </body>
 </html>

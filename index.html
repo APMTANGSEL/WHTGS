@@ -277,7 +277,7 @@ function render(){
 
   $('banner').innerHTML = low.length
     ? '<div class="banner"><b>Harus segera di requestkan</b> <small>· ketuk nama barang untuk melihat</small><ul>' + low.map(r =>
-        `<li><a data-k="${esc(r.kode)}" role="button" tabindex="0">${esc(r.nama)}</a>: sisa <b>${nf(r.akhir)}</b></li>`).join('') + '</ul><div class="pesan"><b>Pak Daryoto :</b> <span class="typed" data-t="Ayo segera requestkan ya om aziz"></span></div></div>'
+        `<li><a data-k="${esc(r.kode)}" role="button" tabindex="0">${esc(r.nama)}</a>: sisa <b>${nf(r.akhir)}</b></li>`).join('') + '</ul><div class="pesan"><b>WAREHOUSE FS :</b> <span class="typed" data-t="SEGERA REQUEST BARANG"></span></div></div>'
     : '';
 
   const q = $('q').value.trim().toLowerCase();
@@ -295,7 +295,7 @@ function render(){
       <td class="n akhir" data-l="Stok Akhir"><b>${nf(r.akhir)}</b></td>
       <td class="lvl"><div class="bar"><i data-w="${pct}"></i></div></td><td class="stat">${st}</td></tr>`;
   }).join('') : (onlyLow && !low.length
-      ? '<tr class="emptyrow"><td colspan="9" class="empty aman"><div class="thumb">' + PENGUIN + '</div><div class="pesan aman-msg"><b>Pak Daryoto :</b> <span class="typed" data-t="Material aman yaaa om aziz"></span></div></td></tr>'
+      ? '<tr class="emptyrow"><td colspan="9" class="empty aman"><div class="thumb">' + PENGUIN + '</div><div class="pesan aman-msg"><b>WAREHOUSE FS :</b> <span class="typed" data-t="Material aman yaaa om Agus"></span></div></td></tr>'
       : '<tr class="emptyrow"><td colspan="9" class="empty">Tidak ada barang yang cocok.</td></tr>');
   entMs = animRows ? rows.length * STEP + DUR : 0;
   if (animRows) document.querySelectorAll('#rekap tr').forEach((tr, i) => { tr.classList.add('rin'); tr.style.setProperty('--d', i * STEP + 'ms'); });
